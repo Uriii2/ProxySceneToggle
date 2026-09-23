@@ -23,13 +23,20 @@ class ProxyToggleApp : ApplicationContext{
     const int INTERNET_OPTION_REFRESH = 37;
 	
 	private System.Threading.Timer _timer;
+	private readonly SynchronizationContext _uiContext;	
+	private bool ManualClickOff ;
 
   
 	public ProxyToggleApp()
     {
-        tray = new NotifyIcon();
+        // Захватываем контекст UI-потока
+        _uiContext = SynchronizationContext.Current
+            ?? new WindowsFormsSynchronizationContext();
+		
+		tray = new NotifyIcon();
         tray.Visible = true;
         tray.MouseClick += OnTrayClick;
+		ManualClickOff = false;
 
         statusItem = new MenuItem("...") { Enabled = false };
         toggleItem = new MenuItem("Переключить", (s, e) => Toggle());
@@ -104,10 +111,12 @@ class ProxyToggleApp : ApplicationContext{
 				if (bitValue == "7")  
 				{
 					currentBytes[byteIndex] = 0x03;
+					ManualClickOff = true; //Ю+++ вручную выключена
 				}
 				else 
 				{
 					currentBytes[byteIndex] = 0x07;
+					ManualClickOff = false; //Ю+++
 				}				
 				key.SetValue(valueName, currentBytes, RegistryValueKind.Binary);				
 			}
@@ -143,6 +152,12 @@ class ProxyToggleApp : ApplicationContext{
 	tray.Text = on ? "Сценарий Proxy.pac:   ВКЛ" : "Сценарий Proxy.pac:   выкл";
 	statusItem.Text = on ? "● Сценарий Proxy.pac   включён" : "Сценарий Proxy.pac   выключен";
 	toggleItem.Text = on ? "Выключить Proxy.pac" : "Включить Proxy.pac";
+	
+	//если вручную не выключалось, но по каким-то причинам система сценарий отключила, то заново включаем. 
+	if (ManualClickOff == false && on == false) 
+		{
+			Toggle();
+		}
     }
 
     // Рисуем иконку: зелёный кружок = вкл, серый = выкл
@@ -184,13 +199,43 @@ class ProxyToggleApp : ApplicationContext{
 	
 	void StartPeriodicCheck()
     {
-        int intervalMs = 10000; //Таймер каждые 10 секунд проверяет состояние переключателя (значение бита показателя реестра) меняет цвет иконки.
+        int intervalMs = 10000; //Таймер каждые 10 секунд. Если что, меняет цвет иконки.
         _timer = new System.Threading.Timer(
-            callback: _ => UpdateUI(),
+            callback: _ => 			
+			{
+                try
+                {
+                    Upd();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(ex);
+                }
+            },			
             state: null,
             dueTime: 0,
             period: intervalMs
         );
+    }
+	
+	
+		private void Upd()
+    {
+        _uiContext.Post(_ =>
+        {
+            UpdateUI();
+        }, null);
+	}
+	
+	
+	protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+		{
+			if (_timer != null) _timer.Dispose();
+			if (tray != null) tray.Dispose();
+		}
+        base.Dispose(disposing);
     }
 	
 	
