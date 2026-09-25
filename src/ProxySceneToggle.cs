@@ -111,12 +111,12 @@ class ProxyToggleApp : ApplicationContext{
 				if (bitValue == "7")  
 				{
 					currentBytes[byteIndex] = 0x03;
-					ManualClickOff = true; //Ю+++ вручную выключена
+					ManualClickOff = true; //вручную выключена
 				}
 				else 
 				{
 					currentBytes[byteIndex] = 0x07;
-					ManualClickOff = false; //Ю+++
+					ManualClickOff = false; 
 				}				
 				key.SetValue(valueName, currentBytes, RegistryValueKind.Binary);				
 			}
